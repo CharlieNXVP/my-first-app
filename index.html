@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>할 일 목록</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 48px 16px;
+      /* 같은 폴더의 background.jpg를 배경으로 사용 (없으면 회색) */
+      background: #f3f4f6 url("background.jpg") center / cover no-repeat fixed;
+      font-family: "Pretendard", "Malgun Gothic", system-ui, sans-serif;
+      color: #1f2937;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 480px;
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(8px);
+      border-radius: 16px;
+      padding: 28px 24px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    }
+
+    h1 {
+      margin: 0 0 20px;
+      font-size: 24px;
+    }
+
+    form {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      padding: 12px 14px;
+      font-size: 16px;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      outline: none;
+    }
+
+    input[type="text"]:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+    }
+
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+    }
+
+    .add-btn {
+      padding: 0 18px;
+      background: #3b82f6;
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .add-btn:hover { background: #2563eb; }
+
+    ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    li {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 4px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    li .content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      cursor: pointer;
+      min-width: 0;
+    }
+
+    li .text {
+      word-break: break-all;
+    }
+
+    li .date {
+      font-size: 12px;
+      color: #9ca3af;
+    }
+
+    li.done .text {
+      text-decoration: line-through;
+      color: #9ca3af;
+    }
+
+    .delete-btn {
+      padding: 6px 12px;
+      background: #fee2e2;
+      color: #b91c1c;
+      font-size: 14px;
+    }
+
+    .delete-btn:hover { background: #fecaca; }
+
+    .empty {
+      text-align: center;
+      color: #9ca3af;
+      padding: 24px 0;
+    }
+
+    .count {
+      margin-top: 16px;
+      font-size: 14px;
+      color: #6b7280;
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>할 일 목록</h1>
+
+    <form id="todo-form">
+      <input type="text" id="todo-input" placeholder="할 일을 입력하세요" autocomplete="off">
+      <button type="submit" class="add-btn">추가</button>
+    </form>
+
+    <ul id="todo-list"></ul>
+    <p class="empty" id="empty-message">할 일이 없습니다.</p>
+    <p class="count" id="count"></p>
+  </main>
+
+  <script>
+    const STORAGE_KEY = "my-first-app-todos";
+
+    const form = document.getElementById("todo-form");
+    const input = document.getElementById("todo-input");
+    const list = document.getElementById("todo-list");
+    const emptyMessage = document.getElementById("empty-message");
+    const count = document.getElementById("count");
+
+    let todos = loadTodos();
+
+    // 브라우저 저장소에서 목록 불러오기
+    function loadTodos() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    // 브라우저 저장소에 목록 저장하기
+    function saveTodos() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
+      } catch (e) {
+        // 저장할 수 없는 환경이면 무시
+      }
+    }
+
+    // 화면 다시 그리기
+    function render() {
+      list.innerHTML = "";
+
+      todos.forEach((todo) => {
+        const li = document.createElement("li");
+        if (todo.done) li.classList.add("done");
+
+        const content = document.createElement("div");
+        content.className = "content";
+        content.addEventListener("click", () => toggleTodo(todo.id));
+
+        const text = document.createElement("span");
+        text.className = "text";
+        text.textContent = todo.text;
+
+        const date = document.createElement("span");
+        date.className = "date";
+        date.textContent = formatDate(todo.createdAt || todo.id);
+
+        content.append(text, date);
+
+        const deleteBtn = document.createElement("button");
+        deleteBtn.className = "delete-btn";
+        deleteBtn.textContent = "삭제";
+        deleteBtn.addEventListener("click", () => deleteTodo(todo.id));
+
+        li.append(content, deleteBtn);
+        list.appendChild(li);
+      });
+
+      emptyMessage.style.display = todos.length === 0 ? "block" : "none";
+
+      const remaining = todos.filter((t) => !t.done).length;
+      count.textContent = todos.length > 0
+        ? `전체 ${todos.length}개 · 남은 할 일 ${remaining}개`
+        : "";
+    }
+
+    // 날짜와 시간을 "2026. 9. 30. (수) 오후 3:25" 형식으로 바꾸기
+    function formatDate(timestamp) {
+      return new Date(timestamp).toLocaleString("ko-KR", {
+        year: "numeric",
+        month: "numeric",
+        day: "numeric",
+        weekday: "short",
+        hour: "numeric",
+        minute: "2-digit",
+      });
+    }
+
+    // 항목 추가
+    function addTodo(text) {
+      const now = Date.now();
+      todos.push({ id: now, text, done: false, createdAt: now });
+      saveTodos();
+      render();
+    }
+
+    // 항목 삭제
+    function deleteTodo(id) {
+      todos = todos.filter((t) => t.id !== id);
+      saveTodos();
+      render();
+    }
+
+    // 완료 표시 켜기/끄기
+    function toggleTodo(id) {
+      const todo = todos.find((t) => t.id === id);
+      if (todo) todo.done = !todo.done;
+      saveTodos();
+      render();
+    }
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+      addTodo(text);
+      input.value = "";
+      input.focus();
+    });
+
+    render();
+  </script>
+</body>
+</html>
